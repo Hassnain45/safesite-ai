@@ -1,5 +1,4 @@
 import streamlit as st
-import cv2
 import numpy as np
 from ultralytics import YOLO
 from PIL import Image
@@ -22,16 +21,12 @@ model = load_model()
 st.title("🪖 SafeSite AI: PPE & Geofencing Monitor")
 st.sidebar.header("Configuration & Upload")
 
-uploaded_file = st.sidebar.file_uploader("Upload Construction CCTV Video", type=["mp4", "mov", "avi"])
+uploaded_file = st.sidebar.file_uploader("Upload Construction Image/Frame", type=["jpg", "jpeg", "png"])
 conf_threshold = st.sidebar.slider("Confidence Threshold", 0.1, 0.9, 0.25, 0.05)
 
 if uploaded_file is not None:
-    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    tfile.write(uploaded_file.read())
-    tfile.close()
-    
-    cap = cv2.VideoCapture(tfile.name)
-    stframe = st.empty()
+    image = Image.open(uploaded_file).convert("RGB")
+    frame = np.array(image)
     
     col1, col2 = st.columns(2)
     with col1:
@@ -39,31 +34,20 @@ if uploaded_file is not None:
     with col2:
         violation_metric = st.empty()
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-            
-        if model is not None:
-            results = model(frame, conf=conf_threshold, verbose=False)[0]
-            annotated_frame = results.plot()
-            
-            boxes = results.boxes
-            cls_list = boxes.cls.cpu().numpy() if boxes is not None and boxes.cls is not None else []
-            person_count = int(np.sum(cls_list == 5)) if len(cls_list) > 0 else 0
-        else:
-            annotated_frame = frame
-            person_count = 0
+    if model is not None:
+        results = model(frame, conf=conf_threshold, verbose=False)[0]
+        annotated_frame = results.plot()
+        
+        boxes = results.boxes
+        cls_list = boxes.cls.cpu().numpy() if boxes is not None and boxes.cls is not None else []
+        person_count = int(np.sum(cls_list == 5)) if len(cls_list) > 0 else 0
+    else:
+        annotated_frame = frame
+        person_count = 0
 
-        worker_metric.metric("Tracked Workers", person_count)
-        violation_metric.metric("Active Infractions", 0, delta_color="inverse")
-        
-        stframe.image(annotated_frame, channels="BGR", use_container_width=True)
-        
-    cap.release()
-    try:
-        os.unlink(tfile.name)
-    except Exception:
-        pass
+    worker_metric.metric("Tracked Workers", person_count)
+    violation_metric.metric("Active Infractions", 0, delta_color="inverse")
+    
+    st.image(annotated_frame, channels="RGB", use_container_width=True)
 else:
-    st.info("👈 Upload a CCTV video clip using the sidebar to begin real-time PPE tracking.")
+    st.info("👈 Upload an image using the sidebar to begin PPE tracking.")
