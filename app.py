@@ -10,7 +10,14 @@ st.set_page_config(page_title="SafeSite AI", page_icon="🪖", layout="wide")
 
 @st.cache_resource
 def load_model():
-    return YOLO("backend/models/best.pt")
+    # Check possible paths for best.pt
+    paths_to_try = ["backend/models/best.pt", "models/best.pt", "best.pt"]
+    for path in paths_to_try:
+        if os.path.exists(path):
+            return YOLO(path)
+    st.error("Model weights file (best.pt) not found! Please check its location in your repository.")
+    return None
+
 
 model = load_model()
 
